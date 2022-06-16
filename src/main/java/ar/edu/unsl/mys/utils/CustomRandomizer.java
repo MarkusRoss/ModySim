@@ -43,7 +43,7 @@ public class CustomRandomizer implements Randomizer
     @Override
     public float nextExponencial(int mean){
         double r = nextRandom();
-        return (float)(-mean*Math.log(1-r));
+        return (float)(-mean * Math.log(1 - r));
     }   
 
     @Override

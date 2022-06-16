@@ -13,17 +13,14 @@ import java.io.BufferedWriter;
 import ar.edu.unsl.mys.resources.Server;
 import ar.edu.unsl.mys.resources.Airstrip;
 import ar.edu.unsl.mys.entities.Entity;
-import ar.edu.unsl.mys.entities.HeavyAircraft;
-import ar.edu.unsl.mys.entities.LightAircraft;
-import ar.edu.unsl.mys.entities.Mantenimiento;
-import ar.edu.unsl.mys.entities.MediumAircraft;
-import ar.edu.unsl.mys.events.ArrivalEventHeavy;
-import ar.edu.unsl.mys.events.ArrivalEventLight;
-import ar.edu.unsl.mys.events.ArrivalEventMed;
-import ar.edu.unsl.mys.events.ArrivalMaintenanceEvent;
+import ar.edu.unsl.mys.entities.Aircraft;
+import ar.edu.unsl.mys.events.ArrivalEvent;
 import ar.edu.unsl.mys.events.Event;
 import ar.edu.unsl.mys.resources.CustomQueue;
 import ar.edu.unsl.mys.events.StopExecutionEvent;
+import ar.edu.unsl.mys.metrics.AircraftMetric;
+import ar.edu.unsl.mys.metrics.AirstripMetric;
+import ar.edu.unsl.mys.metrics.AirstripMetricMini;
 import ar.edu.unsl.mys.policies.RepairServerModelPolicy;
 import ar.edu.unsl.mys.policies.ServerSelectionPolicy;
 
@@ -31,52 +28,7 @@ import ar.edu.unsl.mys.policies.ServerSelectionPolicy;
  * Event oriented simulation of an airport
  */
 public class AirportSimulation implements Engine {
-    public static final String ANSI_RESET = "\u001B[0m";
-    public static final String ANSI_BLACK = "\u001B[30m";
-    public static final String ANSI_RED = "\u001B[31m";
-    public static final String ANSI_GREEN = "\u001B[32m";
-    public static final String ANSI_YELLOW = "\u001B[33m";
-    public static final String ANSI_BLUE = "\u001B[34m";
-    public static final String ANSI_PURPLE = "\u001B[35m";
-    public static final String ANSI_CYAN = "\u001B[36m";
-    public static final String ANSI_WHITE = "\u001B[37m";
     public static int costo;
-
-
-    private int totalaviones;
-    private float transitomedia;
-    private float esperamedia;
-    //estaticas de entidades
-
-    private int[] EntityIdCount = new int[4];
-    public int[] getEntityIdCount() {
-        return EntityIdCount;
-    }
-
-    public float[] getEntityAvgWaitingTime() {
-        return EntityAvgWaitingTime;
-    }
-
-    public float[] getEntityMaxWaitingTime() {
-        return EntityMaxWaitingTime;
-    }
-
-    public float[] getEntityAvgTransitTime() {
-        return EntityAvgTransitTime;
-    }
-
-    public float[] getEntityMaxTransitTime() {
-        return EntityMaxTransitTime;
-    }
-
-    private float[] EntityAvgWaitingTime= new float[4];
-    private float[] EntityMaxWaitingTime= new float[4];
-    private float[] EntityAvgTransitTime= new float[4];
-
-
-    private float[] EntityMaxTransitTime= new float[4];
-
-
     DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
     LocalDateTime now = LocalDateTime.now();
     private String report = "==============================================================================================\n"
@@ -93,18 +45,16 @@ public class AirportSimulation implements Engine {
     private boolean stopSimulation;
     private FutureEventList fel;
     private List<Server> servers;
-    
-
-
-    private List<Server> livservers;
-    private List<Server> medservers;
-    private List<Server> heavservers;
-
     private ServerSelectionPolicy selectionPolicy;
     private HashMap<Integer, Integer> tipo_cantidad;
 
-    public AirportSimulation(HashMap<Integer, Integer> tipo_cantidad, int endTime, ServerSelectionPolicy policy) {
+    // ANALITICAS DE REPLICACIONES
+    List<AircraftMetric> metricasAviones = new ArrayList<>();
+    List<AirstripMetric> metricasPistas = new ArrayList<>();
 
+
+
+    public AirportSimulation(HashMap<Integer, Integer> tipo_cantidad, int endTime, ServerSelectionPolicy policy) {
         this.tipo_cantidad = tipo_cantidad;
         initialize(tipo_cantidad, endTime, policy);
 
@@ -119,54 +69,28 @@ public class AirportSimulation implements Engine {
         stopSimulation = false;
         this.selectionPolicy = policy; // Almacenamos la politica de selección
 
-        // Crear la lista de pistas
-
+        // Crear la lista de pistas dado un HashMap
         createAirstrips(tipo_cantidad);
 
         // Cargar la fel con el evento de fin y un evento de inicio para la simulacion
-
         StopExecutionEvent evento_fin = new StopExecutionEvent(endTime, this);
-        ArrivalEventLight evento_ArriboLight = new ArrivalEventLight(0, policy);
-        ArrivalEventMed evento_ArriboMedium = new ArrivalEventMed(0, policy);
-        ArrivalEventHeavy evento_ArriboHeavy = new ArrivalEventHeavy(0, policy);
-        ArrivalMaintenanceEvent evento_ArriboMaintenance = new ArrivalMaintenanceEvent(1440,
-                RepairServerModelPolicy.getInstance());
+        ArrivalEvent arriboLigero = new ArrivalEvent(0, policy, new Aircraft(1));
+        ArrivalEvent arriboMediano = new ArrivalEvent(0, policy, new Aircraft(2));
+        ArrivalEvent arriboPesado = new ArrivalEvent(0, policy, new Aircraft(3));
+        ArrivalEvent arriboMantenimiento = new ArrivalEvent(1440,
+        RepairServerModelPolicy.getInstance(), new Aircraft(0));
 
         fel.insert(evento_fin);
-        fel.insert(evento_ArriboMaintenance);
-        fel.insert(evento_ArriboLight);
-        fel.insert(evento_ArriboMedium);
-        fel.insert(evento_ArriboHeavy);
+        fel.insert(arriboLigero);
+        fel.insert(arriboMediano);
+        fel.insert(arriboPesado);
+        fel.insert(arriboMantenimiento);
     }
 
     public static int getEndTime() {
         return endTime;
     }
-    public List<Server> getServers() {
-        return servers;
-    }
-    public List<Server> getLivservers() {
-        return livservers;
-    }
 
-    public List<Server> getMedservers() {
-        return medservers;
-    }
-
-    public List<Server> getHeavservers() {
-        return heavservers;
-    }
-    public int getTotalaviones() {
-        return totalaviones;
-    }
-
-    public float getTransitomedia() {
-        return transitomedia;
-    }
-
-    public float getEsperamedia() {
-        return esperamedia;
-    }
     public ServerSelectionPolicy getSelectionPolicy() {
         return selectionPolicy;
     }
@@ -181,46 +105,36 @@ public class AirportSimulation implements Engine {
         cola_espera.setAssignedServer(pista);
         pista.setMainAirport(this);
         servers.add(pista);
+        costo += 1000 * type; // Por cada pista creada, vamos aumentando el costo
+        // Pista Ligera: 1000; Pista Mediana: 2000; Pista Pesada: 3000;
     }
 
     public void createAirstrips(HashMap<Integer, Integer> map) { // Creacion de pistas
         java.util.Iterator<Integer> it = map.keySet().iterator(); // Iterador para el Map(tipo'key', cantidad'value')
-        List<Server> temp = new ArrayList<>();
+
         while (it.hasNext()) { // Realizo esto mientras tenga elementos en Map
-            temp = new ArrayList<>();
             Integer key_tipo = it.next(); // Recupero el tipo
             for (int i = 0; i < map.get(key_tipo); i++) { // Itero por sobre la cantidad pedida
-                
-                CustomQueue cola_espera = new CustomQueue();
-                Airstrip pista = new Airstrip(cola_espera, key_tipo);
-                cola_espera.setAssignedServer(pista);
-                pista.setMainAirport(this);
-                servers.add(pista);
-                temp.add(pista);
-                costo += 1000 * key_tipo; // Por cada pista creada, vamos aumentando el costo
-                // Pista Ligera: 1000; Pista Mediana: 2000; Pista Pesada: 3000;
-            }
-            switch(key_tipo){ //Discrimino los tipos de servidores.
-                case 1: livservers = temp;
-                case 2: medservers = temp;
-                case 3: medservers = temp;
+                addAirstrip(key_tipo);
             }
         }
     }
 
     @Override
     public void execute() {
+        // Simular todo
         while (!stopSimulation) {
             Event event = fel.getImminent();
             event.planificate(servers, fel);
         }
-        perdonenme();
+        // Guardar Analiticas de Replicación
+        metricasAviones.add(new AircraftMetric());
+        metricasPistas.add(new AirstripMetric(servers));
     }
 
     // Genera las estadisticas pedidas en el practico, se muestran solo una vez al
     // finalizar la simulación
     // Se ejecuta una cantidad de veces acorde a la cantidad de servidores
-
     public void generateAnalitics() {
         // Ordena los servidores por Id para una mejor lectura en el reporte
         servers.sort(new Comparator<Server>() {
@@ -242,12 +156,22 @@ public class AirportSimulation implements Engine {
 
         // Genera Analiticas generales
         appendReport("==================ANALITICAS====================\n");
-        totalaviones = HeavyAircraft.getIdCount() + MediumAircraft.getIdCount()
-                + LightAircraft.getIdCount() - 3;// (Entity.getIdCount() - 1);
+        int totalAvionesLigeros = Entity.getIdCountSpecific(1);
+        int totalAvionesMedianos = Entity.getIdCountSpecific(2);
+        int totalAvionesPesados = Entity.getIdCountSpecific(3);
+        int totalMantenimientos = Entity.getIdCountSpecific(0);
+        
+        
+        int totalaviones = totalAvionesLigeros + totalAvionesMedianos + totalAvionesPesados;
 
-        esperamedia = ((float) Entity.getTotalWaitingTime()) / totalaviones;
-        transitomedia = ((float) Entity.getTotalTransitTime()) / totalaviones;
-        appendReport(("Cantidad de aviones que aterrizaron: " + totalaviones) + '\n');
+        float esperamedia = ((float) Entity.getTotalWaitingTime()) / totalaviones;
+        float transitomedia = ((float) Entity.getTotalTransitTime()) / totalaviones;
+        appendReport(("Cantidad Total de aviones que aterrizaron: " + totalaviones) + '\n');
+        appendReport(("Cantidad de aviones ligeros que aterrizaron: " + totalAvionesLigeros) + '\n');
+        appendReport(("Cantidad de aviones medianos que aterrizaron: " + totalAvionesMedianos) + '\n');
+        appendReport(("Cantidad de aviones pesados que aterrizaron: " + totalAvionesPesados) + '\n');
+        appendReport(("Cantidad de Mantenimientos hechos: " + totalMantenimientos + '\n'));
+        
         appendReport(("Maximo tiempo de espera " + (Entity.getMaxWaitingTime())) + '\n');
         appendReport("Tiempo medio de espera " + esperamedia + '\n');
         appendReport("Tiempo medio de transito " + transitomedia + '\n');
@@ -256,9 +180,6 @@ public class AirportSimulation implements Engine {
         appendReport(("Tiempo total de transito:") + Entity.getTotalTransitTime() + '\n');
         appendReport("Costo Final: " + costo + "\n");
 
-        // AAAAAA
-
-        
         // Genera Analiticas de los servidores
         int it = 0;
 
@@ -293,8 +214,8 @@ public class AirportSimulation implements Engine {
     // Genera las Analiticas dado un Servidor
     public void generateAnaliticsPerServer(Server server, boolean writeHistory) {
         // Calculo de Analiticas
-        server.OcioDivSim = ((float) server.getTotalIdleTime()) / endTime;
-        server.MaxOcioDivOcio = ((float) server.getMaxIdleTime()) / server.getTotalIdleTime();
+        float prop = ((float) server.getTotalIdleTime()) / endTime;
+        float prop1 = ((float) server.getMaxIdleTime()) / server.getTotalIdleTime();
 
         // Mostrar Analiticas por Server
         appendReport("===================SERVER " + String.valueOf(server.getId()) + "====================\n"); // TEMPORAL
@@ -306,37 +227,15 @@ public class AirportSimulation implements Engine {
         appendReport(("Tiempo de ocio total "
                 + server.getTotalIdleTime()) + '\n');
         appendReport("Tiempo de ocio total con respecto a la simulacion "
-                + server.OcioDivSim * 100 + "%" + '\n');
+                + prop * 100 + "%" + '\n');
         appendReport("Tiempo de ocio maximo con respecto al tiempo de ocio total "
-                + server.MaxOcioDivOcio * 100 + "%" + '\n');
+                + prop1 * 100 + "%" + '\n');
 
         if (writeHistory) {
             writeFile(server.getReport(), true, "server_" + server.getId() + ".txt");
         }
     }
-    public void perdonenme(){
-        
-        EntityIdCount[0] = Entity.getIdCount();
-        EntityMaxTransitTime[0] = Entity.getMaxTransitTime();
-        EntityMaxWaitingTime[0] = Entity.getMaxWaitingTime();
-        EntityAvgTransitTime[0] = Entity.getTotalTransitTime();
-        EntityAvgWaitingTime[0] = Entity.getTotalWaitingTime();
-        EntityIdCount[1] = LightAircraft.getIdCount();
-        EntityMaxTransitTime[1] = LightAircraft.getMaxTransitTime();
-        EntityMaxWaitingTime[1] = LightAircraft.getMaxWaitingTime();
-        EntityAvgTransitTime[1] = LightAircraft.getTotalTransitTime()/LightAircraft.getIdCount();
-        EntityAvgWaitingTime[1] = LightAircraft.getTotalWaitingTime()/LightAircraft.getIdCount();
-        EntityIdCount[2] = MediumAircraft.getIdCount();
-        EntityMaxTransitTime[2] = MediumAircraft.getMaxTransitTime();
-        EntityMaxWaitingTime[2] = MediumAircraft.getMaxWaitingTime();
-        EntityAvgTransitTime[2] = MediumAircraft.getTotalTransitTime()/MediumAircraft.getIdCount();
-        EntityAvgWaitingTime[2] = MediumAircraft.getTotalWaitingTime()/MediumAircraft.getIdCount();
-        EntityIdCount[3] = HeavyAircraft.getIdCount();
-        EntityMaxTransitTime[3] = HeavyAircraft.getMaxTransitTime();
-        EntityMaxWaitingTime[3] = HeavyAircraft.getMaxWaitingTime();
-        EntityAvgTransitTime[3] = HeavyAircraft.getTotalTransitTime()/HeavyAircraft.getIdCount();
-        EntityAvgWaitingTime[3] = HeavyAircraft.getTotalWaitingTime()/HeavyAircraft.getIdCount();
-    }
+
     // GENERATE REPORT INTO FILE EXAMPLE
     @Override
     public String generateReport(boolean intoFile, String fileName) {
@@ -362,7 +261,7 @@ public class AirportSimulation implements Engine {
             }
         }
         //System.out.println(textToWrite);
-
+        System.out.println("File written in: " + fileName);
         return textToWrite;
     }
 
@@ -376,8 +275,7 @@ public class AirportSimulation implements Engine {
 
     @Override
     public void reset() {
-        // TODO Auto-generated method stub
-        // ¿Como resetear el Aeropuerto?
+        costo = 0;
         report = "==============================================================================================\n"
                 +
                 "                                        R E P O R T                                           \n" +
@@ -391,14 +289,127 @@ public class AirportSimulation implements Engine {
 
         // Resetear c/variable Estatica
         Entity.reset();
-        LightAircraft.reset();
-        MediumAircraft.reset();
-        HeavyAircraft.reset();
-        Mantenimiento.reset();
+        Aircraft.reset();
         Server.reset();
 
-        initialize(tipo_cantidad, endTime, selectionPolicy); // Error: Se crean nuevos servidores y se mantienen los
-                                                             // anteriores
+        initialize(tipo_cantidad, endTime, selectionPolicy);
+    }
 
+    @Override
+    public void showReplicationAnalitics() {
+        AircraftMetric metricaAcumuladaAviones = new AircraftMetric();
+        AirstripMetric listaServers = new AirstripMetric();
+        //List<AirstripMetricMini> listaServers = new ArrayList<>(); // Equivale a un AirstripMetric
+        
+        int iterationTimes = metricasAviones.size();
+        // --Acumular todas las ejecuciones--
+        // Acumular Aviones
+        // Calcular media de medias
+        for(AircraftMetric avion: metricasAviones){
+            for(int i = 0; i < 4; i++){
+                metricaAcumuladaAviones.setCantidadAviones(i, metricaAcumuladaAviones.getCantidadAviones(i) + avion.getCantidadAviones(i));
+                metricaAcumuladaAviones.setTiempoMedioEspera(i, metricaAcumuladaAviones.getTiempoMedioEspera(i) + avion.getTiempoMedioEspera(i));
+                metricaAcumuladaAviones.setTiempoMedioEsperaMax(i, metricaAcumuladaAviones.getTiempoMedioEsperaMax(i) + avion.getTiempoMedioEsperaMax(i));
+                metricaAcumuladaAviones.setTiempoMedioTransito(i, metricaAcumuladaAviones.getTiempoMedioTransito(i) + avion.getTiempoMedioTransito(i));
+                metricaAcumuladaAviones.setTiempoMedioTransitoMax(i, metricaAcumuladaAviones.getTiempoMedioTransitoMax(i) + avion.getTiempoMedioTransitoMax(i));
+            }
+        }
+        for(int i = 0; i < 4; i++){
+            metricaAcumuladaAviones.setCantidadAviones(i, metricaAcumuladaAviones.getCantidadAviones(i) / iterationTimes);
+            metricaAcumuladaAviones.setTiempoMedioEspera(i, metricaAcumuladaAviones.getTiempoMedioEspera(i) / iterationTimes);
+            metricaAcumuladaAviones.setTiempoMedioEsperaMax(i, metricaAcumuladaAviones.getTiempoMedioEsperaMax(i) / iterationTimes);
+            metricaAcumuladaAviones.setTiempoMedioTransito(i, metricaAcumuladaAviones.getTiempoMedioTransito(i) / iterationTimes);
+            metricaAcumuladaAviones.setTiempoMedioTransitoMax(i, metricaAcumuladaAviones.getTiempoMedioTransitoMax(i) / iterationTimes);
+        }
+        // Calcular Varianzas
+            // ANALITICAS DE REPLICACIONES
+            double[] varCantidadAviones = new double[4];
+            double[] varTiempoMedioTransito = new double[4];
+            double[] varTiempoMedioEspera = new double[4];
+            double[] varTiempoMedioTransitoMax = new double[4];
+            double[] varTiempoMedioEsperaMax = new double[4];
+
+        for(AircraftMetric avion: metricasAviones){
+            for(int i = 0; i < 4; i++){
+                varCantidadAviones[i]       += avion.getCantidadAviones(i) - metricaAcumuladaAviones.getCantidadAviones(1);
+                varTiempoMedioTransito[i]   += avion.getTiempoMedioTransito(i) - metricaAcumuladaAviones.getTiempoMedioTransito(1); 
+                varTiempoMedioEspera[i]     += avion.getTiempoMedioEspera(i) - metricaAcumuladaAviones.getTiempoMedioEspera(1);
+                varTiempoMedioTransitoMax[i]+= avion.getTiempoMedioTransitoMax(i) - metricaAcumuladaAviones.getTiempoMedioTransitoMax(1);
+                varTiempoMedioEsperaMax[i]  += avion.getTiempoMedioEsperaMax(i) - metricaAcumuladaAviones.getTiempoMedioEsperaMax(1);
+            }
+        }
+
+        for(AircraftMetric avion: metricasAviones){
+            for(int i = 0; i < 4; i++){
+                varCantidadAviones[i]       /= Math.sqrt(iterationTimes - 1) / 1.96;
+                varTiempoMedioTransito[i]   /= Math.sqrt(iterationTimes - 1) / 1.96;
+                varTiempoMedioEspera[i]     /= Math.sqrt(iterationTimes - 1) / 1.96;
+                varTiempoMedioTransitoMax[i]/= Math.sqrt(iterationTimes - 1) / 1.96;
+                varTiempoMedioEsperaMax[i]  /= Math.sqrt(iterationTimes - 1) / 1.96;
+            }
+        }
+
+        // Acumular Pistas
+        for(AirstripMetricMini pista : metricasPistas.get(0).getListaServers()){
+            listaServers.getListaServers().add(new AirstripMetricMini());
+        }
+
+        for(AirstripMetric pistaPorReplica: metricasPistas){ //itera la lista de servers por ejecucion, devuelve la lista de servers en esa ejecucion
+            // Ordenar las pistatPorReplica por id para evitar mezcla.
+            pistaPorReplica.getListaServers().sort(new Comparator<AirstripMetricMini>() {
+                @Override
+                public int compare(AirstripMetricMini o1, AirstripMetricMini o2) {
+                    int id1 = o1.getId();
+                    int id2 = o2.getId();
+                    int ret = 0;
+                    if (id1 < id2) {
+                        ret = -1;
+                    } else if (id1 > id2) {
+                        ret = 1;
+                    } else
+                        ret = 0;
+                    return ret;
+                }
+            });
+            int i = 0;
+            for(AirstripMetricMini pista : pistaPorReplica.getListaServers()){
+                listaServers.getListaServers().get(i).setId(pista.getId());
+                listaServers.getListaServers().get(i).setTiempoOcioTotal(listaServers.getListaServers().get(i).getTiempoOcioTotal() + pista.getTiempoOcioTotal());
+                listaServers.getListaServers().get(i).setTiempoOcioMaximo(listaServers.getListaServers().get(i).getTiempoOcioMaximo() + pista.getTiempoOcioMaximo());
+                listaServers.getListaServers().get(i).setTamañoMaximoCola(listaServers.getListaServers().get(i).getTamañoMaximoCola() + pista.getTamañoMaximoCola());
+                listaServers.getListaServers().get(i).setDurabilidadRestante(listaServers.getListaServers().get(i).getDurabilidadRestante() + pista.getDurabilidadRestante());
+                //System.out.println(listaServers.get(i));
+                i++;
+            }
+        }
+        //System.out.println(metricasPistas);
+        //System.out.println(listaServers);
+
+        // --Mostrar Estadisticas--
+        // Mostrar Aviones
+        for(int i = 0; i < 4; i++){
+            String tipoAvion = Entity.typeToString(i);
+            int cantidadAviones = metricaAcumuladaAviones.getCantidadAviones(i);
+            float tiempoMedioEspera = metricaAcumuladaAviones.getTiempoMedioEspera(i);
+            float tiempoMedioEsperaMax = metricaAcumuladaAviones.getTiempoMedioEsperaMax(i);
+            float tiempoMedioTransito = metricaAcumuladaAviones.getTiempoMedioTransito(i);
+            float tiempoMedioTransitoMax = metricaAcumuladaAviones.getTiempoMedioTransitoMax(i);
+            System.out.println("[" + tipoAvion + "]");
+            //System.out.println("Cantidad de aviones [ " + (cantidadAviones  - varCantidadAviones[i])  + ":" + (cantidadAviones  + Math.sqrt(varCantidadAviones[i]))+ "]");
+            System.out.println("Cantidad de aviones [ "+ cantidadAviones + "]");
+            
+            System.out.println(tiempoMedioEspera);
+            System.out.println(tiempoMedioEsperaMax);
+            System.out.println(tiempoMedioTransito);
+            System.out.println(tiempoMedioTransitoMax);
+        }
+        // Mostrar Pistass
+        for(AirstripMetricMini pista : listaServers.getListaServers()){
+            System.out.println("Pista id: " + pista.getId());
+            System.out.println(pista.getTiempoOcioTotal() / iterationTimes);
+            System.out.println(pista.getTiempoOcioMaximo() / iterationTimes);
+            System.out.println(pista.getTamañoMaximoCola() / iterationTimes);
+            System.out.println(pista.getDurabilidadRestante() / iterationTimes);
+        }
     }
 }

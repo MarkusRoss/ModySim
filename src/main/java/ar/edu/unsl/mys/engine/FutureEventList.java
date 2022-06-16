@@ -40,6 +40,7 @@ public class FutureEventList {
     }
 
     public Event getImminent() {
+        felImpl.sort(comparator);
         return felImpl.remove(0);
     }
 

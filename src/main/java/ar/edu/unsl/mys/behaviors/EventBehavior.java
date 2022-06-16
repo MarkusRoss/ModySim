@@ -16,7 +16,6 @@ public abstract class EventBehavior
     public Randomizer getRandomizer()
     {
         return randomizer;
-        
     }
 
     /**

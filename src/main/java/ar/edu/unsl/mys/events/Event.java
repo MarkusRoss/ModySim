@@ -31,12 +31,14 @@ public abstract class Event
     public Event(float clock2, AirportSimulation airportSimulation) {
     }
 
+    // Para el StopSimulation
     public Event(float clock2, int priority, AirportSimulation airportSimulation) {
         this.clock = clock2;
         this.priority = priority;
     }
 
-    public Event(float clock2, int priority, Entity entity2) { // Nuevo constructor que incluye la prioridad de Eventos que tenemos que hablar
+    // Para el Arribo y Fin de Servicio
+    public Event(float clock2, int priority, Entity entity2) {
         this.priority = priority;
         clock = clock2;
         this.entity = entity2;

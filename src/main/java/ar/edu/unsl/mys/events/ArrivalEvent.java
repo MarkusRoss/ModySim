@@ -3,109 +3,99 @@ package ar.edu.unsl.mys.events;
 import java.util.List;
 
 import ar.edu.unsl.mys.resources.Server;
+import ar.edu.unsl.mys.entities.Aircraft;
 import ar.edu.unsl.mys.entities.Entity;
-import ar.edu.unsl.mys.entities.Mantenimiento;
 import ar.edu.unsl.mys.engine.FutureEventList;
 import ar.edu.unsl.mys.policies.ServerSelectionPolicy;
-import ar.edu.unsl.mys.behaviors.ArrivalEventLightBehavior;
-import ar.edu.unsl.mys.behaviors.LightEndOfServiceEventBehavior;
-import ar.edu.unsl.mys.behaviors.EventBehavior;
+import ar.edu.unsl.mys.behaviors.ArrivalEventBehavior;
+import ar.edu.unsl.mys.behaviors.EndOfServiceEventBehavior;
 
 public class ArrivalEvent extends Event {
 
     private ServerSelectionPolicy selectionPolicy;
-    private EventBehavior endOfServiceEventBehavior; // Asociacion con sus comportamientos
-    private EventBehavior arrivalEventBehavior;
-    protected int tipo = 1;
+    //private EventBehavior endOfServiceEventBehavior; // Asociacion con sus comportamientos
+    //private EventBehavior arrivalEventBehavior;
+    //protected int tipo = 1;
 
     public ArrivalEvent(float clock, ServerSelectionPolicy policy, Entity entity) {
-
         super(clock, 1, entity);
         selectionPolicy = policy;
-        setArrivalEventBehavior(ArrivalEventLightBehavior.getInstance());
-        setEndOfServiceEventBehavior(LightEndOfServiceEventBehavior.getInstance());
     }
 
     public ServerSelectionPolicy getSelectionPolicy() {
         return selectionPolicy;
     }
 
-    public EventBehavior getEndOfServiceEventBehavior() {
-        return endOfServiceEventBehavior;
-    }
-
-    public void setEndOfServiceEventBehavior(EventBehavior endOfServiceEventBehavior) {
-        this.endOfServiceEventBehavior = endOfServiceEventBehavior;
-    }
-
-    public EventBehavior getArrivalEventBehavior() {
-        return arrivalEventBehavior;
-    }
-
-    public void setArrivalEventBehavior(EventBehavior arrivalEventBehavior) {
-        this.arrivalEventBehavior = arrivalEventBehavior;
-    }
-
     @Override
     public void planificate(List<Server> servers, FutureEventList fel) {
 
-        Server servidor = selectionPolicy.selectServer(servers, tipo);
+        Entity entity = this.getEntity();
+        
 
-        if (this.getEntity() instanceof Mantenimiento) // El mantenimiento entra, por ello se deshabilita la pista
-            servidor.setServerEnable(false);
+
+        Server servidor = selectionPolicy.selectServer(servers, entity.getType());
+        entity.setAttendingServer(servidor);
+    
+        // Deshabilitar Servidor
+        if (entity.getType() == 0){
+            entity.disableServer(); 
+        }
 
         if (servidor.isBusy()) { // Verifico si el servidor esta ocupado
-            this.getEntity().setAttendingServer(servidor);
-            servidor.getQueue().enqueue(this.getEntity());
+            servidor.getQueue().enqueue(entity);
 
             // ANALITICAS
             servidor.setIdleTimeStartMark(0);
             servidor.setIdleTimeFinishMark(0);
-
+            
         } else { // Si esta desocupado
             servidor.setBusy(true); // Marco el servidor como OCUPADO
-            servidor.setServedEntity(this.getEntity());
-            this.getEntity().setAttendingServer(servidor);
-            Event prox_salida = endOfServiceEventBehavior.nextEvent // Planificamos proxima salida (esta
-                                                                    // entidad)
-            (this, this.getEntity());
-            this.getEntity().setEvent(prox_salida);
+            servidor.setServedEntity(entity);
+            Event prox_salida = EndOfServiceEventBehavior.getInstance().nextEvent(this, entity);
+            entity.setEvent(prox_salida);
             fel.insert(prox_salida); // Guardamos la proxima salida en la FEL
 
             // ANALITICAS
             servidor.setIdleTimeFinishMark(this.getClock());
         }
-
-        Event prox_arribo = arrivalEventBehavior.nextEvent // Planificamos proximo arribo (nueva entidad)
-        (this, null);
-        this.getEntity().setEvent(this);
+        // Planificamos proximo arribo (nueva entidad)
+        Event prox_arribo = ArrivalEventBehavior.getInstance().nextEvent(this, new Aircraft(entity.getType()));
+        entity.setEvent(this);
         fel.insert(prox_arribo); // Guardamos el proximo arribo en la FEL
-        // HISTORIA
-        String toString = this.toString() + "\n";
-        String ocioTime = "Tiempo de ocio de Pista " +
-        servidor.getId() + ":" + servidor.getIdleTime() + '\n';
 
-        servidor.getMainAirport().appendHistory(toString);
-        servidor.getMainAirport().appendHistory(ocioTime);
-        servidor.appendReport(toString);
-        servidor.appendReport(ocioTime);
+        
+        
+        
+        
+        analiticas(servidor);
         
         
         //servidor.getMainAirport().appendReport(this.toString() + "\n");
         //servidor.getMainAirport().appendReport("Tiempo de ocio de Pista " +
         //        servidor.getId() + ":" + servidor.getIdleTime() + '\n');
-        
-        
+    }
 
+    private void analiticas(Server servidor) {
+        // HISTORIA
+        String toString = this.toString() + "\n";
+        String ocioTime = "Tiempo de ocio de Pista " +
+        servidor.getId() + ":" + servidor.getIdleTime() + '\n';
+
+        String queueSize = "Cola de " +
+        this.getEntity().getAttendingServer().getId() + " = "
+        + this.getEntity().getAttendingServer().getQueue().getQueue().size() + '\n';
+
+        servidor.getMainAirport().appendHistory(toString);
+        servidor.getMainAirport().appendHistory(ocioTime);
+        servidor.getMainAirport().appendHistory(queueSize);
+        servidor.appendReport(toString);
+        servidor.appendReport(ocioTime);
     }
 
     @Override
     public String toString() {
-        //
-        return "[ Evento Arribo," + this.getEntity().toString() + " Clock: " + this.getClock()
-                + " / En servidor:" + this.getEntity().getAttendingServer().getId() + " de tipo: "
-                + this.getEntity().getAttendingServer().getTipo() +" Cola:" + this.getEntity().getAttendingServer().getQueue().getQueue().size()+" ]";
-
+        return "[Evento Arribo, " + this.getEntity().toString() + " Clock: " +
+                this.getClock() + " / En servidor:" + this.getEntity().getAttendingServer().getId() + " de tipo:"
+                + this.getEntity().getAttendingServer().getTipo() + "]";
     }
-
 }

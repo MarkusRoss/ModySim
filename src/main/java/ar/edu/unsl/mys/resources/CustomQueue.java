@@ -25,13 +25,23 @@ public class CustomQueue extends Queue {
     @Override
     public void enqueue(Entity entity) {
         this.getQueue().add(entity);
-        if (this.getQueue().size() > this.getMaxSize()) {
-            this.setMaxSize(this.getQueue().size());
+        int size = this.getQueue().size();
+        
+        if ( size > this.getMaxSize()) {
+            this.setMaxSize(size);
+            
+        }
+
+        if (this.getMaxSize() > 10){
+            //System.out.println(this.getMaxSize());
         }
     }
 
     @Override
     public Entity next() { // Devuelve a la entidad en espera
+        if (this.getMaxSize() > 10){
+            //System.out.println(this.getMaxSize());
+        }
         return this.getQueue().remove();
     }
 

@@ -14,19 +14,16 @@ public abstract class Queue
     {
         queue = new LinkedList<>();
         maxSize=0;
-        
     }
 
     public Server getAssignedServer()
     {
         return assignedServer;
-
     }
 
     public void setAssignedServer(Server assignedServer)
     {
         this.assignedServer = assignedServer;
-
     }
 
     public java.util.Queue<Entity> getQueue()

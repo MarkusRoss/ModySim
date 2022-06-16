@@ -20,4 +20,6 @@ public interface Engine {
     String generateHistory(boolean b, String string);
 
     void reset();
+
+    void showReplicationAnalitics();
 }
