@@ -41,7 +41,6 @@ public class AirportSimulation implements Engine {
     public static final String ANSI_CYAN = "\u001B[36m";
     public static final String ANSI_WHITE = "\u001B[37m";
     public static int costo;
-    //Pruebapruebiosa
 
     private int totalaviones;
     private float transitomedia;
